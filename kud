@@ -25,15 +25,19 @@ SYNOPSIS
     ${SCRIPT} [OPTIONS]
 
 DESCRIPTION
-    ${SCRIPT} is a quick kubernetes (k8s) utility to 1+n pods. ${SCRIPT} prompts for:
+    ${SCRIPT} is a quick kubernetes (k8s) utility to delete 1+n pods. ${SCRIPT} prompts for:
       - <NAMESPACE> (defaults to current ns. See kubens(1))
       - <POD> (defaults to "1")
-      - <CONFIRM> (defaults to YES)
+      - <CONFIRM> (defaults negatory)
     ENTER to use defaults.
 
 OPTIONS
     -h, --help
         Show this help message
+    -f, --force
+        `kud -f` will delete the first pod in the namespace without further prompting.
+    -a, --all
+        Delete all pods in the namespace
 
 SEE ALSO
     kubectx(1), kubens(1)
@@ -96,12 +100,14 @@ po_del() {
     delete pod $(po_select)
 }
 
-ask_yes_or_no() {
-  read -p "$1 ([y]es or [N]o): "
-  case $(echo $REPLY | tr '[A-Z]' '[a-z]') in
-      y|yes) echo "yes" ;;
-      *)     echo "no" ;;
-  esac
+po_del_all() {
+  kubectl $(ns_param) \
+    delete pod $(po_list)
+}
+
+po_del_force() {
+  kubectl \
+    delete pod $(kubectl get pods -o=jsonpath='{range .items[*].metadata.name}{@}{"\n"}{end}' |head -n1)
 }
 
 # Transform long options to short ones. Sick trick.
@@ -110,13 +116,17 @@ for arg in "$@"; do
   shift
   case "$arg" in
     "--help")       set -- "$@" "-h" ;;
+    "--all")        set -- "$@" "-a" ;;
+    "--force")      set -- "$@" "-f" ;;
     *)              set -- "$@" "$arg"
   esac
 done
 
-while getopts :h OPT; do
+while getopts :haf OPT; do
   case $OPT in
     h ) HELP=true;;
+    a ) ALL=true;;
+    f ) FORCE=true;;
     \?) echo "Unknown option: -$OPTARG" >&2; exit 1;;
     : ) echo "Missing option argument for -$OPTARG" >&2; exit 1;;
   esac
@@ -126,15 +136,23 @@ shift $((OPTIND-1))
 # Usage, list, and delete should not happen simultaneously, so elif.
 if [[ ${HELP:-} == 'true' ]]; then
   usage; exit 0
-else
-  ns=$(ns_current)
-  echo "Namespace? (default ${ns:-default}):"; ns_number_list; read NS;
-  echo 'Pod number? (default 1):'; po_number_list; read POD;
-  # Might want to use the negated form: 
-  # https://stackoverflow.com/questions/1885525/how-do-i-prompt-a-user-for-confirmation-in-bash-script
-  read -p "Are you sure? " -n 1 -r
-  echo    # (optional) move to a new line
-  if [[ $REPLY =~ ^[Yy]$ ]]; then
-      po_del
+  else
+    if [[ ${FORCE:-} == 'true' ]]; then
+    po_del_force; exit 0
+    else
+      if [[ ${ALL:-} == 'true' ]]; then
+      po_del_all; exit 0
+      else
+        ns=$(ns_current)
+        echo "Namespace? (default ${ns:-default}):"; ns_number_list; read NS;
+        echo 'Pod number? (default 1):'; po_number_list; read POD;
+        # Might want to use the negated form: 
+        # https://stackoverflow.com/questions/1885525/how-do-i-prompt-a-user-for-confirmation-in-bash-script
+        read -p "Are you sure? " -n 1 -r
+        echo    # (optional) move to a new line
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            po_del
+          fi
+      fi
     fi
 fi
