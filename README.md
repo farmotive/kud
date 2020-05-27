@@ -2,8 +2,6 @@ The purpose of kud is to provide an opinionated pod deletion of one or many kube
 
 # kud
 
-[![asciicast](https://asciinema.org/a/9eOpigvMlIEvYz5QBop1kfyIw.png)](https://asciinema.org/a/9eOpigvMlIEvYz5QBop1kfyIw)
-
 ```sh
 kud(1)
 
